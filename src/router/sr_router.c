@@ -79,8 +79,67 @@ void sr_handlepacket(struct sr_instance* sr,
   printf("*** -> Received packet of length %d \n",len);
 
   /* fill in code here */
+  
+  //length sanity check, should at least contain an ip and ethernet header
+  if(len < sizeof(sr_ethernet_hdr_t)+ sizeof(sr_ip_hdr_t)){
+    fprintf(stderr, "Packet is too short");
+    return;
+  }
+
+  //checksum sanity check
+  sr_ip_hdr_t* ip_hdr =(sr_ip_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
+  uint16_t received_checksum = ip_hdr->ip_sum;
+  ip_hdr->ip_sum = 0;// Reset for checksum calculation
+  uint16_t calculated_checksum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+  if(received_checksum != calculated_checksum){
+    fprintf(stderr, "wrong checksum");
+    return;
+  }
+  ip_hdr->ip_sum = received_checksum;
+  ip_hdr->ip_ttl--;//decrement ttl
+  if(ip_hdr->ip_ttl <= 0){
+    //expired
+    //sr_send_icmp(sr, packet, interface, 11, 0);
+    //TODO: send some ICMP message
+    return;
+  }
+
+  //need to update checksum since ttl is modified
+  ip_hdr->ip_sum = 0;
+  ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+
+  struct sr_rt* dest = sr_find_lpm(sr, ip_hdr->ip_dst);
+  if(!dest){//if we don't find any good place to send
+    //TODO: send some ICMP message
+    //sr_send_icmp(sr, packet, interface, 3, 0);  // Type 3: Destination Unreachable, Code 0: Net Unreachable
+    return;
+  }
 
 } /* end sr_handlepacket */
+
+//helper function to find longest prefix match
+struct sr_rt* sr_find_lpm(struct sr_instance* sr, uint32_t ip_dst){
+    struct sr_rt* rt_entry = sr->routing_table;
+    struct sr_rt* longest_match = NULL;
+    uint32_t longest_mask = 0;
+
+    while(rt_entry){//go over 
+      uint32_t rt_mask = rt_entry->mask.s_addr;
+      uint32_t rt_dest = rt_entry->dest.s_addr;
+
+      //firstly there must be a match
+      if((ip_dst & rt_mask)==(rt_dest & rt_mask)){
+        //then we stick to the longest match
+        if(rt_mask > longest_mask){
+          longest_match = rt_entry;
+          longest_mask = rt_mask;
+        }
+      }
+
+      rt_entry = rt_entry->next;// Move to the next routing table entry
+    }
+    return longest_match;
+}
 
 
 /* Add any additional helper methods here & don't forget to also declare

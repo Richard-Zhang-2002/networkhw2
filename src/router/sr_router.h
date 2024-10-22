@@ -64,7 +64,7 @@ int sr_read_from_server(struct sr_instance* );
 /* -- sr_router.c -- */
 void sr_init(struct sr_instance* );
 void sr_handlepacket(struct sr_instance* , uint8_t * , unsigned int , char* );
-
+struct sr_rt* sr_find_lpm(struct sr_instance* sr, uint32_t ip_dst);
 /* Add additional helper method declarations here! */
 
 /* -- sr_if.c -- */
