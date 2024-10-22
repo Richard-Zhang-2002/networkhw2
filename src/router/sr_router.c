@@ -79,6 +79,69 @@ void sr_handlepacket(struct sr_instance* sr,
   printf("*** -> Received packet of length %d \n",len);
 
   /* fill in code here */
+
+  sr_ethernet_hdr_t* eth_hdr = (sr_ethernet_hdr_t*) packet;
+
+  //in case we are dealing with arp stuff
+  if (ntohs(eth_hdr->ether_type) == ethertype_arp) {
+    sr_arp_hdr_t* arp_hdr = (sr_arp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
+    
+    //go over my interfaces and see if any is the target
+    struct sr_if* iface = sr->if_list;
+    int found_interface = 0;
+    while (iface) {
+      if (iface->ip == arp_hdr->ar_tip) {
+        found_interface = 1;
+        break;  // We found a match, so stop looping
+      }
+      iface = iface->next;
+    }
+
+    //if the arp is targetting my router
+    if(found_interface){
+      if (ntohs(arp_hdr->ar_op) == arp_op_request) {//in case of handling request
+        uint8_t* arp_reply = (uint8_t*) malloc(len);
+        memcpy(arp_reply, packet, len);//modify the request to create our reply, they have similar structure anyway
+
+        //header of the reply(ethernet and arp)
+        sr_ethernet_hdr_t* eth_reply_hdr = (sr_ethernet_hdr_t*) arp_reply;
+        sr_arp_hdr_t* arp_reply_hdr = (sr_arp_hdr_t*) (arp_reply + sizeof(sr_ethernet_hdr_t));
+
+        //reverse sender and receiver desination in MAC
+        memcpy(eth_reply_hdr->ether_dhost, eth_hdr->ether_shost, ETHER_ADDR_LEN);
+        memcpy(eth_reply_hdr->ether_shost, eth_hdr->ether_dhost, ETHER_ADDR_LEN);
+
+
+        //handle arp header
+        arp_reply_hdr->ar_op = htons(arp_op_reply);//we are not requesting but replying
+        memcpy(arp_reply_hdr->ar_sha, iface->addr, ETHER_ADDR_LEN);//sender address is the address of this interface
+        arp_reply_hdr->ar_sip = iface->ip;//similar to above, but IP instead of MAC
+        memcpy(arp_reply_hdr->ar_tha, arp_hdr->ar_sha, ETHER_ADDR_LEN);//again, our target is the previous sender
+        arp_reply_hdr->ar_tip = arp_hdr->ar_sip;//similar to above, but IP instead of MAC
+
+        //send packet and free space
+        sr_send_packet(sr, arp_reply, len, interface);
+        free(arp_reply);
+        return;
+      }
+      //in case of handling reply
+      if (ntohs(arp_hdr->ar_op) == arp_op_reply) {
+        //get the request from the queue(also save the result to the cache)
+        struct sr_arpreq* req = sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
+        if (req) {//if there is an request, send all its packets and delete it
+          struct sr_packet* packet_list = req->packets;
+          while (packet_list) {
+            sr_ethernet_hdr_t* eth_hdr = (sr_ethernet_hdr_t*) packet_list->buf;
+            memcpy(eth_hdr->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);//destination should be the source of ARP(the one who responded to my IP to MAC request)
+            memcpy(eth_hdr->ether_shost, sr_get_interface(sr, packet_list->iface)->addr, ETHER_ADDR_LEN);//we are sending from the router
+            sr_send_packet(sr, packet_list->buf, packet_list->len, packet_list->iface);
+            packet_list = packet_list->next;
+          }
+          sr_arpreq_destroy(&sr->cache, req);//delete the request after done(I think it handles delelting the packets by itself)
+        }
+      }
+    }
+  }
   
   //length sanity check, should at least contain an ip and ethernet header
   if(len < sizeof(sr_ethernet_hdr_t)+ sizeof(sr_ip_hdr_t)){
