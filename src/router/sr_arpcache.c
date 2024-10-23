@@ -60,7 +60,7 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
                 memcpy(arp_hdr->ar_sha, out_iface->addr, ETHER_ADDR_LEN);//same, set source mac to be the outgoing interface
                 arp_hdr->ar_sip = out_iface->ip;  //IP is just the router's IP
                 memset(arp_hdr->ar_tha, 0x00, ETHER_ADDR_LEN);//target mac is 0 because we don't know it yet
-                arp_hdr->ar_tip = req->ip;//target ip
+                arp_hdr->ar_tip = request->ip;//target ip
                 
                 sr_send_packet(sr, arp_req, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t), out_iface->name);
                 free(arp_req);
