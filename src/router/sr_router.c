@@ -178,9 +178,8 @@ void sr_handlepacket(struct sr_instance* sr,
         sr_send_icmp(sr, packet, len, interface, 0, 0);
         return;
       }
-    }else if (ip_hdr->ip_p == IPPROTO_TCP || ip_hdr->ip_p == IPPROTO_UDP) {
-      // Handle TCP/UDP payload, send ICMP port unreachable (type 3, code 3)
-      sr_send_icmp(sr, packet, len, interface, 3, 3);  // Type 3: Destination Unreachable, Code 3: Port Unreachable
+    }else if (ip_hdr->ip_p == IPPROTO_TCP || ip_hdr->ip_p == CAT) {
+      sr_send_icmp(sr, packet, len, interface, 3, 3);//deal with TCP and UDP
     } else {
       //just ignore
     }
