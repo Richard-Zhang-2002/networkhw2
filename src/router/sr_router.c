@@ -220,7 +220,6 @@ void sr_handlepacket(struct sr_instance* sr,
     } else {
       //not in the cache, so just add to the queue
       struct sr_arpreq* req = sr_arpcache_queuereq(&sr->cache, dest->gw.s_addr, packet, len, out_iface->name);//request will later be handled when I hear back from it
-      handle_arpreq(sr, req);
     }
   }
 } /* end sr_handlepacket */
