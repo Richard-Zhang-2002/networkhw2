@@ -65,7 +65,6 @@ int sr_read_from_server(struct sr_instance* );
 void sr_init(struct sr_instance* );
 void sr_handlepacket(struct sr_instance* , uint8_t * , unsigned int , char* );
 struct sr_rt* sr_find_lpm(struct sr_instance* sr, uint32_t ip_dst);
-void sr_send_icmp(struct sr_instance* sr,uint8_t *packet,unsigned int len,char *interface,uint8_t icmp_type,uint8_t icmp_code);
 /* Add additional helper method declarations here! */
 
 /* -- sr_if.c -- */

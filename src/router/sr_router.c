@@ -240,51 +240,6 @@ struct sr_rt* sr_find_lpm(struct sr_instance* sr, uint32_t ip_dst){
     return longest_match;
 }
 
-//send an icmp packet
-void sr_send_icmp(struct sr_instance* sr,uint8_t *packet,unsigned int len,char *interface,uint8_t icmp_type,uint8_t icmp_code){
-
-    //get the headers
-    sr_ethernet_hdr_t* eth_hdr = (sr_ethernet_hdr_t*) packet;
-    sr_ip_hdr_t* ip_hdr = (sr_ip_hdr_t*) (packet + sizeof(sr_ethernet_hdr_t));
-
-    //allocate the icmp packet
-    unsigned int icmp_packet_len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
-    uint8_t *icmp_packet = (uint8_t *) malloc(icmp_packet_len);
-
-    //sender is the router, receiver is the original sender
-    sr_ethernet_hdr_t *icmp_eth_hdr = (sr_ethernet_hdr_t *) icmp_packet;
-    memcpy(icmp_eth_hdr->ether_dhost, eth_hdr->ether_shost, ETHER_ADDR_LEN);
-    memcpy(icmp_eth_hdr->ether_shost, sr_get_interface(sr, interface)->addr, ETHER_ADDR_LEN);
-    icmp_eth_hdr->ether_type = eth_hdr->ether_type;//still being ip not arp
-
-    //similarly, copy from ip and reverse the sender & receiver
-    sr_ip_hdr_t *icmp_ip_hdr = (sr_ip_hdr_t *)(icmp_packet + sizeof(sr_ethernet_hdr_t));
-    memcpy(icmp_ip_hdr, ip_hdr, sizeof(sr_ip_hdr_t));
-    icmp_ip_hdr->ip_dst = ip_hdr->ip_src;
-    icmp_ip_hdr->ip_src = sr_get_interface(sr, interface)->ip;
-    icmp_ip_hdr->ip_len = htons(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t));//length is both ip and load(icmp)
-    icmp_ip_hdr->ip_p = ip_protocol_icmp;//protocol being ICMP
-    icmp_ip_hdr->ip_ttl = 64;//64 is said to be the default ttl
-
-    //set checksum
-    icmp_ip_hdr->ip_sum = 0;
-    icmp_ip_hdr->ip_sum = cksum(icmp_ip_hdr, sizeof(sr_ip_hdr_t));
-
-    sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *) (icmp_packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-    icmp_hdr->icmp_type = icmp_type;
-    icmp_hdr->icmp_code = icmp_code;
-    icmp_hdr->icmp_sum = 0;
-    icmp_hdr->unused = 0;//default to be zero
-    memcpy(icmp_hdr->data, packet + sizeof(sr_ethernet_hdr_t), ICMP_DATA_SIZE);//include the cause of ICMP
-
-    //calculate checksum after evrything is in the packet header
-    icmp_hdr->icmp_sum = cksum(icmp_hdr, sizeof(sr_icmp_hdr_t));
-
-    //send the packet
-    sr_send_packet(sr, icmp_packet, icmp_packet_len, interface);
-    free(icmp_packet);
-}
-
 
 
 /* Add any additional helper methods here & don't forget to also declare
