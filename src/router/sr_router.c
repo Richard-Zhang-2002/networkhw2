@@ -109,7 +109,7 @@ void sr_handlepacket(struct sr_instance* sr,
 
         //reverse sender and receiver desination in MAC
         memcpy(eth_reply_hdr->ether_dhost, eth_hdr->ether_shost, ETHER_ADDR_LEN);
-        memcpy(eth_reply_hdr->ether_shost, eth_hdr->ether_dhost, ETHER_ADDR_LEN);
+        memcpy(eth_reply_hdr->ether_shost, iface->addr, ETHER_ADDR_LEN);
 
 
         //handle arp header
