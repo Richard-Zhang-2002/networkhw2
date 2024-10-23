@@ -144,21 +144,6 @@ void sr_handlepacket(struct sr_instance* sr,
     }
   }
   
-  //length sanity check, should at least contain an ip and ethernet header
-  if(len < sizeof(sr_ethernet_hdr_t)+ sizeof(sr_ip_hdr_t)){
-    fprintf(stderr, "Packet is too short");
-    return;
-  }
-
-  //checksum sanity check(I know it's mentioned in forwarding logic only, but I think it makes sense to check the checksum even for transmission to my own router interfaces)
-  sr_ip_hdr_t* ip_hdr =(sr_ip_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
-  uint16_t received_checksum = ip_hdr->ip_sum;
-  ip_hdr->ip_sum = 0;// Reset for checksum calculation
-  uint16_t calculated_checksum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
-  if(received_checksum != calculated_checksum){
-    fprintf(stderr, "wrong checksum");
-    return;
-  }
 
   struct sr_if* iface = sr->if_list;
   int is_for_router = 0;
@@ -184,6 +169,22 @@ void sr_handlepacket(struct sr_instance* sr,
       //just ignore
     }
   }else{//not for me
+
+    //length sanity check, should at least contain an ip and ethernet header
+    if(len < sizeof(sr_ethernet_hdr_t)+ sizeof(sr_ip_hdr_t)){
+      fprintf(stderr, "Packet is too short");
+      return;
+    }
+
+    //checksum sanity check(I know it's mentioned in forwarding logic only, but I think it makes sense to check the checksum even for transmission to my own router interfaces)
+    sr_ip_hdr_t* ip_hdr =(sr_ip_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
+    uint16_t received_checksum = ip_hdr->ip_sum;
+    ip_hdr->ip_sum = 0;// Reset for checksum calculation
+    uint16_t calculated_checksum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+    if(received_checksum != calculated_checksum){
+      fprintf(stderr, "wrong checksum");
+      return;
+    }
     ip_hdr->ip_sum = received_checksum;
     ip_hdr->ip_ttl--;//decrement ttl
     if(ip_hdr->ip_ttl <= 0){//if timeout
