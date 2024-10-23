@@ -144,6 +144,7 @@ void sr_handlepacket(struct sr_instance* sr,
         return;
       }
     }
+    return;//don't resend arp anyway
   }
   
   //length sanity check, should at least contain an ip and ethernet header
