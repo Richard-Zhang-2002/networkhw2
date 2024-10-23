@@ -183,7 +183,7 @@ void sr_handlepacket(struct sr_instance* sr,
         sr_send_icmp(sr, packet, len, interface, 0, 0);
         return;
       }
-    }else if (ip_hdr->ip_p == IPPROTO_TCP || ip_hdr->ip_p == IPPROTO_UDP) {
+    }else if (ip_hdr->ip_p == ip_protocol_tcp|| ip_hdr->ip_p == ip_protocol_udp) {
       sr_send_icmp(sr, packet, len, interface, 3, 3);//deal with TCP and UDP
     } else {
       //just ignore

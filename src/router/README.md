@@ -16,7 +16,7 @@ Some guiding questions:
 **DESCRIBE YOUR CODE AND DESIGN DECISIONS HERE**
 
 This will be worth 10% of the assignment grade.
-I modified both sr_arpcahce and sr_router. They are modified because both included unimplemented functions that are key to the functionality of the router(the caching system and handling request).
+I modified both sr_arpcahce and sr_router. They are modified because both included unimplemented functions that are key to the functionality of the router(the caching system and handling request). I also added the appropriate protocol enum for udp and tcp in sr_protocol.h file.
 
 My workflow & logic is as the following: in sr_handlepacket, I first identify whether the packet is an arp. If so, in case of request, I respond to it if it is targetting any of my router's interfaces, otherwise the arp is simply ignored. In case of reply, I will read the mac address included in the reply and use it to send the related packages. Then I will also save the replied address in the cache for future use. If we are not handling an arp(so dealing with ip), I first check the length and the checksum of the input for correctness. Then if the message is sent toward one of my router's interfaces, I deal with it by reading the ip protocal and send icmp respectively(or not, if we are not asked for an echo and we are not getting UDP or TCP). In case the packet is not targetting one of my interfaces, I will first decrement ttl and recalculate checksum based on the modified ttl. Then I will try to fetch ip address in the routing table. If not found, send an icpm. If found, try to find the respective mac address in the cache. If found, send the packet. Otherwise, put the packet request into the queue and let the cache system handle it.
 
