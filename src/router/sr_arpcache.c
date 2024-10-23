@@ -30,19 +30,18 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
     time_t now = time(NULL); // Current time
     
-    if (difftime(now, req->sent) > 1.0) {
-        if(req->times_sent >= 5){
+    if (difftime(now, request->sent) > 1.0) {
+        if(request->times_sent >= 5){
             //send icmp host unreachable to source addr of all pkts waiting
-            struct sr_packet *pkt = req->packets;
+            struct sr_packet *pkt = request->packets;
             while (pkt) {
-                sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt->buf + sizeof(sr_ethernet_hdr_t));
                 sr_send_icmp(sr, pkt->buf, pkt->len, pkt->iface, 3, 1);
                 pkt = pkt->next;
             }
-            sr_arpreq_destroy(&sr->cache, req);
+            sr_arpreq_destroy(&sr->cache, request);
         } else {
             //send request
-            struct sr_if *out_iface = sr_get_interface(sr, req->packets->iface);
+            struct sr_if *out_iface = sr_get_interface(sr, request->packets->iface);
             if (out_iface) {
                 uint8_t *arp_req = (uint8_t *) malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
                 sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *) arp_req;
@@ -67,8 +66,8 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
                 free(arp_req);
                 
                 //update the sent time and number of sent
-                req->sent = now;
-                req->times_sent++;
+                request->sent = now;
+                request->times_sent++;
             }
         }
     }
