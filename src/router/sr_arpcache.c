@@ -324,7 +324,7 @@ void sr_send_icmp(struct sr_instance* sr,uint8_t *packet,unsigned int len,char *
     icmp_ip_hdr->ip_src = sr_get_interface(sr, interface)->ip;
     icmp_ip_hdr->ip_len = htons(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t));//length is both ip and load(icmp)
     icmp_ip_hdr->ip_p = ip_protocol_icmp;//protocol being ICMP
-    icmp_ip_hdr->ip_ttl = 64;//64 is said to be the default ttl
+    icmp_ip_hdr->ip_ttl = INIT_TTL;
 
     //set checksum
     icmp_ip_hdr->ip_sum = 0;
