@@ -156,9 +156,9 @@ void sr_handlepacket(struct sr_instance* sr,
   ip_hdr->ip_sum = 0;// Reset for checksum calculation
   uint16_t calculated_checksum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
   if(received_checksum != calculated_checksum){
-    //fprintf(stderr, "wrong checksum");
-    //fprintf(stderr, "Received checksum: 0x%04x\n", ntohs(received_checksum));  // Convert from network byte order for readability
-    //fprintf(stderr, "Calculated checksum: 0x%04x\n", ntohs(calculated_checksum));  // Convert from network byte order for readability
+    fprintf(stderr, "wrong checksum");
+    fprintf(stderr, "Received checksum: 0x%04x\n", ntohs(received_checksum));  // Convert from network byte order for readability
+    fprintf(stderr, "Calculated checksum: 0x%04x\n", ntohs(calculated_checksum));  // Convert from network byte order for readability
     return;
   }
 
