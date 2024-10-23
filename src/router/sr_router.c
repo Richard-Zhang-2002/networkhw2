@@ -120,7 +120,7 @@ void sr_handlepacket(struct sr_instance* sr,
         arp_reply_hdr->ar_tip = arp_hdr->ar_sip;//similar to above, but IP instead of MAC
 
         //send packet and free space
-        printf("send packet as handling request \n");
+        //printf("send packet as handling request \n");
         sr_send_packet(sr, arp_reply, len, interface);
         free(arp_reply);
         return;
@@ -135,7 +135,7 @@ void sr_handlepacket(struct sr_instance* sr,
             sr_ethernet_hdr_t* eth_hdr = (sr_ethernet_hdr_t*) packet_list->buf;
             memcpy(eth_hdr->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);//destination should be the source of ARP(the one who responded to my IP to MAC request)
             memcpy(eth_hdr->ether_shost, sr_get_interface(sr, packet_list->iface)->addr, ETHER_ADDR_LEN);//we are sending from the router
-            printf("packet sent for handling reply\n");
+            //printf("packet sent for handling reply\n");
             sr_send_packet(sr, packet_list->buf, packet_list->len, packet_list->iface);
             packet_list = packet_list->next;
           }
@@ -211,7 +211,7 @@ void sr_handlepacket(struct sr_instance* sr,
       sr_ethernet_hdr_t* eth_hdr = (sr_ethernet_hdr_t*) packet;
       memcpy(eth_hdr->ether_dhost, arp_entry->mac, ETHER_ADDR_LEN);//destination mac is given by the cache
       memcpy(eth_hdr->ether_shost, out_iface->addr, ETHER_ADDR_LEN); //source mac is my outgoing port
-      printf("packet sent for handling finding something in cache\n");
+      //printf("packet sent for handling finding something in cache\n");
       sr_send_packet(sr, packet, len, out_iface->name);
       free(arp_entry);
     } else {
