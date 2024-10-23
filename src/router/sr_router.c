@@ -135,7 +135,7 @@ void sr_handlepacket(struct sr_instance* sr,
           while (packet_list) {
             sr_ethernet_hdr_t* eth_hdr = (sr_ethernet_hdr_t*) packet_list->buf;
             memcpy(eth_hdr->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);//destination should be the source of ARP(the one who responded to my IP to MAC request)
-            memcpy(eth_hdr->ether_shost, sr_get_interface(sr, packet_list->iface)->addr, ETHER_ADDR_LEN);//we are sending from the router
+            memcpy(eth_hdr->ether_shost, sr_get_interface(sr, interface)->addr, ETHER_ADDR_LEN);//we are sending from the router
             //printf("packet sent for handling reply\n");
             sr_send_packet(sr, packet_list->buf, packet_list->len, packet_list->iface);
             packet_list = packet_list->next;
