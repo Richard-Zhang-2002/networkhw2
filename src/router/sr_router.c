@@ -154,10 +154,12 @@ void sr_handlepacket(struct sr_instance* sr,
   sr_ip_hdr_t* ip_hdr =(sr_ip_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
   uint16_t received_checksum = ip_hdr->ip_sum;
   ip_hdr->ip_sum = 0;// Reset for checksum calculation
-  uint16_t calculated_checksum = cksum(ip_hdr, len- sizeof(sr_ethernet_hdr_t));
+  uint16_t calculated_checksum = cksum(packet, len- sizeof(sr_ethernet_hdr_t));
   if(received_checksum != calculated_checksum){
     fprintf(stderr, "wrong checksum");
     return;
+  }else{
+    fprintf(stderr, "right checksum");
   }
 
   struct sr_if* iface = sr->if_list;
