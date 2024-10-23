@@ -127,6 +127,7 @@ void sr_handlepacket(struct sr_instance* sr,
       }
       //in case of handling reply
       if (ntohs(arp_hdr->ar_op) == arp_op_reply) {
+        pthread_mutex_lock(&sr->cache.lock);
         //get the request from the queue(also save the result to the cache)
         struct sr_arpreq* req = sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
         if (req) {//if there is an request, send all its packets and delete it
@@ -141,6 +142,7 @@ void sr_handlepacket(struct sr_instance* sr,
           }
           sr_arpreq_destroy(&sr->cache, req);//delete the request after done(I think it handles delelting the packets by itself)
         }
+        pthread_mutex_unlock(&sr->cache.lock);
         return;
       }
     }
