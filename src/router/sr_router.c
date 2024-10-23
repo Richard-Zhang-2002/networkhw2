@@ -150,7 +150,7 @@ void sr_handlepacket(struct sr_instance* sr,
     return;
   }
 
-  //checksum sanity check
+  //checksum sanity check(I know it's mentioned in forwarding logic only, but I think it makes sense to check the checksum even for transmission to my own router interfaces)
   sr_ip_hdr_t* ip_hdr =(sr_ip_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
   uint16_t received_checksum = ip_hdr->ip_sum;
   ip_hdr->ip_sum = 0;// Reset for checksum calculation
@@ -183,27 +183,36 @@ void sr_handlepacket(struct sr_instance* sr,
     } else {
       //just ignore
     }
-  }else{//otherwise
+  }else{//not for me
+    ip_hdr->ip_sum = received_checksum;
+    ip_hdr->ip_ttl--;//decrement ttl
+    if(ip_hdr->ip_ttl <= 0){//if timeout
+      sr_send_icmp(sr, packet, len, interface, 11, 0);
+      return;
+    }
 
+    //need to update checksum since ttl is modified
+    ip_hdr->ip_sum = 0;
+    ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+
+    struct sr_rt* dest = sr_find_lpm(sr, ip_hdr->ip_dst);
+    if(!dest){//if we don't find any good place to send
+      sr_send_icmp(sr, packet, len, interface, 3, 0);//destination unreachable
+      return;
+    }
+    //see if this destination is saved in cache
+    struct sr_arpentry* arp_entry = sr_arpcache_lookup(&sr->cache, dest->gw.s_addr);
+    struct sr_if* out_iface = sr_get_interface(sr, dest->interface);
+    if (arp_entry) {//if we can find it
+      sr_ethernet_hdr_t* eth_hdr = (sr_ethernet_hdr_t*) packet;
+      memcpy(eth_hdr->ether_dhost, arp_entry->mac, ETHER_ADDR_LEN);//destination mac is given by the cache
+      memcpy(eth_hdr->ether_shost, out_iface->addr, ETHER_ADDR_LEN); //source mac is my outgoing port
+      sr_send_packet(sr, packet, len, out_iface->name);
+      free(arp_entry);
+  } else {
+    //not in the cache, so just add to the queue
+    struct sr_arpreq* req = sr_arpcache_queuereq(&sr->cache, dest->gw.s_addr, packet, len, out_iface->name);//not sure if I need this request
   }
-
-
-
-  ip_hdr->ip_sum = received_checksum;
-  ip_hdr->ip_ttl--;//decrement ttl
-  if(ip_hdr->ip_ttl <= 0){
-    sr_send_icmp(sr, packet, len, interface, 11, 0);//timeout
-    return;
-  }
-
-  //need to update checksum since ttl is modified
-  ip_hdr->ip_sum = 0;
-  ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
-
-  struct sr_rt* dest = sr_find_lpm(sr, ip_hdr->ip_dst);
-  if(!dest){//if we don't find any good place to send
-    sr_send_icmp(sr, packet, len, interface, 3, 0);//destination unreachable
-    return;
   }
 } /* end sr_handlepacket */
 

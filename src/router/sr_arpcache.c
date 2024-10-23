@@ -17,11 +17,61 @@
   See the comments in the header file for an idea of what it should look like.
 */
 void sr_arpcache_sweepreqs(struct sr_instance *sr) {
-    /* fill in code here */
+    struct sr_arpreq *req = sr->cache.requests;
+    struct sr_arpreq *next_req;
+
+    while (req) {
+        next_req = req->next;//use next so that we are fine even if handle destroys the current request
+        handle_arpreq(sr, req);
+        req = next_req;
+    }
 }
 
 void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
-    /* fill in code here */
+    time_t now = time(NULL); // Current time
+    
+    if (difftime(now, req->sent) > 1.0) {
+        if(req->times_sent >= 5){
+            //send icmp host unreachable to source addr of all pkts waiting
+            struct sr_packet *pkt = req->packets;
+            while (pkt) {
+                sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt->buf + sizeof(sr_ethernet_hdr_t));
+                sr_send_icmp(sr, pkt->buf, pkt->len, pkt->iface, 3, 1);
+                pkt = pkt->next;
+            }
+            sr_arpreq_destroy(&sr->cache, req);
+        } else {
+            //send request
+            struct sr_if *out_iface = sr_get_interface(sr, req->packets->iface);
+            if (out_iface) {
+                uint8_t *arp_req = (uint8_t *) malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
+                sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *) arp_req;
+                sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *) (arp_req + sizeof(sr_ethernet_hdr_t));
+                
+                memset(eth_hdr->ether_dhost, 0xff, ETHER_ADDR_LEN); //broadcast
+                memcpy(eth_hdr->ether_shost, out_iface->addr, ETHER_ADDR_LEN);//source being our out interface
+                eth_hdr->ether_type = htons(ethertype_arp);
+                
+                //ARP header
+                arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
+                arp_hdr->ar_pro = htons(ethertype_ip);
+                arp_hdr->ar_hln = ETHER_ADDR_LEN;
+                arp_hdr->ar_pln = sizeof(uint32_t);
+                arp_hdr->ar_op = htons(arp_op_request);
+                memcpy(arp_hdr->ar_sha, out_iface->addr, ETHER_ADDR_LEN);//same, set source mac to be the outgoing interface
+                arp_hdr->ar_sip = out_iface->ip;  //IP is just the router's IP
+                memset(arp_hdr->ar_tha, 0x00, ETHER_ADDR_LEN);//target mac is 0 because we don't know it yet
+                arp_hdr->ar_tip = req->ip;//target ip
+                
+                sr_send_packet(sr, arp_req, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t), out_iface->name);
+                free(arp_req);
+                
+                //update the sent time and number of sent
+                req->sent = now;
+                req->times_sent++;
+            }
+        }
+    }
 }
 
 /* You should not need to touch the rest of this code. */
@@ -248,3 +298,50 @@ void *sr_arpcache_timeout(void *sr_ptr) {
 
     return NULL;
 }
+
+
+//send an icmp packet
+void sr_send_icmp(struct sr_instance* sr,uint8_t *packet,unsigned int len,char *interface,uint8_t icmp_type,uint8_t icmp_code){
+
+    //get the headers
+    sr_ethernet_hdr_t* eth_hdr = (sr_ethernet_hdr_t*) packet;
+    sr_ip_hdr_t* ip_hdr = (sr_ip_hdr_t*) (packet + sizeof(sr_ethernet_hdr_t));
+
+    //allocate the icmp packet
+    unsigned int icmp_packet_len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
+    uint8_t *icmp_packet = (uint8_t *) malloc(icmp_packet_len);
+
+    //sender is the router, receiver is the original sender
+    sr_ethernet_hdr_t *icmp_eth_hdr = (sr_ethernet_hdr_t *) icmp_packet;
+    memcpy(icmp_eth_hdr->ether_dhost, eth_hdr->ether_shost, ETHER_ADDR_LEN);
+    memcpy(icmp_eth_hdr->ether_shost, sr_get_interface(sr, interface)->addr, ETHER_ADDR_LEN);
+    icmp_eth_hdr->ether_type = eth_hdr->ether_type;//still being ip not arp
+
+    //similarly, copy from ip and reverse the sender & receiver
+    sr_ip_hdr_t *icmp_ip_hdr = (sr_ip_hdr_t *)(icmp_packet + sizeof(sr_ethernet_hdr_t));
+    memcpy(icmp_ip_hdr, ip_hdr, sizeof(sr_ip_hdr_t));
+    icmp_ip_hdr->ip_dst = ip_hdr->ip_src;
+    icmp_ip_hdr->ip_src = sr_get_interface(sr, interface)->ip;
+    icmp_ip_hdr->ip_len = htons(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t));//length is both ip and load(icmp)
+    icmp_ip_hdr->ip_p = ip_protocol_icmp;//protocol being ICMP
+    icmp_ip_hdr->ip_ttl = 64;//64 is said to be the default ttl
+
+    //set checksum
+    icmp_ip_hdr->ip_sum = 0;
+    icmp_ip_hdr->ip_sum = cksum(icmp_ip_hdr, sizeof(sr_ip_hdr_t));
+
+    sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *) (icmp_packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+    icmp_hdr->icmp_type = icmp_type;
+    icmp_hdr->icmp_code = icmp_code;
+    icmp_hdr->icmp_sum = 0;
+    icmp_hdr->unused = 0;//default to be zero
+    memcpy(icmp_hdr->data, packet + sizeof(sr_ethernet_hdr_t), ICMP_DATA_SIZE);//include the cause of ICMP
+
+    //calculate checksum after evrything is in the packet header
+    icmp_hdr->icmp_sum = cksum(icmp_hdr, sizeof(sr_icmp_hdr_t));
+
+    //send the packet
+    sr_send_packet(sr, icmp_packet, icmp_packet_len, interface);
+    free(icmp_packet);
+}
+
