@@ -135,7 +135,7 @@ void sr_handlepacket(struct sr_instance* sr,
           while (packet_list) {
             sr_ethernet_hdr_t* eth_hdr = (sr_ethernet_hdr_t*) packet_list->buf;
             memcpy(eth_hdr->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);//destination should be the source of ARP(the one who responded to my IP to MAC request)
-            memcpy(eth_hdr->ether_shost, sr_get_interface(sr, interface)->addr, ETHER_ADDR_LEN);//we are sending from the router
+            memcpy(eth_hdr->ether_shost, sr_get_interface(sr, packet_list->iface)->addr, ETHER_ADDR_LEN);//we are sending from the router
             //printf("packet sent for handling reply\n");
             sr_send_packet(sr, packet_list->buf, packet_list->len, packet_list->iface);
             packet_list = packet_list->next;
@@ -155,7 +155,7 @@ void sr_handlepacket(struct sr_instance* sr,
     return;
   }
 
-  //checksum sanity check(I know it's mentioned in forwarding logic only, but I think it makes sense to check the checksum even for transmission to my own router interfaces)
+  //checksum sanity check
   sr_ip_hdr_t* ip_hdr =(sr_ip_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
   uint16_t received_checksum = ip_hdr->ip_sum;
   ip_hdr->ip_sum = 0;// Reset for checksum calculation
@@ -181,7 +181,7 @@ void sr_handlepacket(struct sr_instance* sr,
   if (is_for_router) {
     if (ip_hdr->ip_p == ip_protocol_icmp) {//dealing with ping echo
       sr_icmp_hdr_t* icmp_hdr = (sr_icmp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-      if (icmp_hdr->icmp_type == 8) {//make sure it's actually an echo request
+      if (icmp_hdr->icmp_type == 8 && icmp_hdr->icmp_code == 0) {//make sure it's actually an echo request
         sr_send_icmp(sr, packet, len, interface, 0, 0);
         return;
       }
@@ -219,7 +219,8 @@ void sr_handlepacket(struct sr_instance* sr,
       free(arp_entry);
     } else {
       //not in the cache, so just add to the queue
-      sr_arpcache_queuereq(&sr->cache, dest->gw.s_addr, packet, len, out_iface->name);//request will later be handled when I hear back from it
+      struct sr_arpreq* req = sr_arpcache_queuereq(&sr->cache, dest->gw.s_addr, packet, len, out_iface->name);//request will later be handled when I hear back from it
+      handle_arpreq(sr, req);
     }
   }
 } /* end sr_handlepacket */
