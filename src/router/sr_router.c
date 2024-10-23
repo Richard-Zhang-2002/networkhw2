@@ -147,7 +147,7 @@ void sr_handlepacket(struct sr_instance* sr,
 
   struct sr_if* iface = sr->if_list;
   int is_for_router = 0;
-
+  sr_ip_hdr_t* ip_hdr =(sr_ip_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
   while (iface) {
     if (iface->ip == ip_hdr->ip_dst) {
       is_for_router = 1;
@@ -177,7 +177,6 @@ void sr_handlepacket(struct sr_instance* sr,
     }
 
     //checksum sanity check(I know it's mentioned in forwarding logic only, but I think it makes sense to check the checksum even for transmission to my own router interfaces)
-    sr_ip_hdr_t* ip_hdr =(sr_ip_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
     uint16_t received_checksum = ip_hdr->ip_sum;
     ip_hdr->ip_sum = 0;// Reset for checksum calculation
     uint16_t calculated_checksum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
